@@ -3,6 +3,10 @@ import type { Card, CardType } from '../types';
 import { useBoardStore } from '../store/boardStore';
 import { v4 as uuidv4 } from 'uuid';
 
+function makeRandomRotation() {
+  return Math.round((Math.random() - 0.5) * 6);
+}
+
 interface CardEditorProps {
   boardId: string;
   card?: Card;
@@ -40,7 +44,7 @@ export const CardEditor: React.FC<CardEditorProps> = ({
   const [pinned, setPinned] = useState(card?.pinned ?? true);
   // Slight random rotation for new cards to feel like a real corkboard
   const [rotation, setRotation] = useState(
-    card?.rotation ?? Math.round((Math.random() - 0.5) * 6)
+    card?.rotation ?? makeRandomRotation()
   );
   const [imageUrl, setImageUrl] = useState(card?.imageUrl ?? '');
   const [linkUrl, setLinkUrl] = useState(card?.linkUrl ?? '');

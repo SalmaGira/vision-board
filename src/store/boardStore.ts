@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import type { Board, Card, CanvasState } from '../types';
+import type { Board, Card, CanvasState, BoardTemplate } from '../types';
 
 interface BoardStore {
   boards: Board[];
@@ -9,6 +9,7 @@ interface BoardStore {
 
   // Board operations
   createBoard: (name: string) => string;
+  createBoardFromTemplate: (name: string, template: BoardTemplate) => string;
   deleteBoard: (id: string) => void;
   renameBoard: (id: string, name: string) => void;
   setActiveBoard: (id: string | null) => void;
@@ -46,6 +47,27 @@ export const useBoardStore = create<BoardStore>()(
           cards: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
+        };
+        set((state) => ({ boards: [...state.boards, board] }));
+        return id;
+      },
+
+      createBoardFromTemplate: (name, template) => {
+        const id = uuidv4();
+        const now = Date.now();
+        const cards: Card[] = template.cards.map((c, idx) => ({
+          ...c,
+          id: uuidv4(),
+          createdAt: now + idx,
+        }));
+        const board: Board = {
+          id,
+          name,
+          backgroundColor: template.backgroundColor,
+          backgroundPattern: template.backgroundPattern,
+          cards,
+          createdAt: now,
+          updatedAt: now,
         };
         set((state) => ({ boards: [...state.boards, board] }));
         return id;

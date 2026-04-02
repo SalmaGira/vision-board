@@ -2,6 +2,19 @@ export type CardType = 'note' | 'todo' | 'image' | 'quote' | 'link';
 
 export type BackgroundPattern = 'none' | 'dots' | 'grid' | 'lines' | 'cork';
 
+export type TemplateId =
+  | 'blank'
+  | 'vision-board'
+  | 'mind-map'
+  | 'brainstorming'
+  | 'project-planning'
+  | 'content-mapping'
+  | 'moodboard'
+  | 'creative-art'
+  | 'illustration'
+  | 'writing'
+  | 'web-dev';
+
 export interface TodoItem {
   id: string;
   text: string;
@@ -42,4 +55,15 @@ export interface CanvasState {
   x: number;
   y: number;
   scale: number;
+}
+
+export interface BoardTemplate {
+  id: TemplateId;
+  name: string;
+  description: string;
+  icon: string;
+  category: 'creative' | 'planning' | 'technical';
+  backgroundColor: string;
+  backgroundPattern: BackgroundPattern;
+  cards: Omit<Card, 'id' | 'createdAt'>[];
 }
