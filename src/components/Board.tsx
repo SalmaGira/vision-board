@@ -4,6 +4,10 @@ import { BoardCard } from './BoardCard';
 import { CardEditor } from './CardEditor';
 import type { CardType, BackgroundPattern } from '../types';
 
+function makeRandomCardOffset() {
+  return { x: (Math.random() - 0.5) * 500, y: (Math.random() - 0.5) * 350 };
+}
+
 interface BoardProps {
   boardId: string;
 }
@@ -27,6 +31,9 @@ export const Board: React.FC<BoardProps> = ({ boardId }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
+  // Touch tracking refs for pinch-to-zoom
+  const lastTouchDist = useRef<number | null>(null);
+  const lastTouchMid = useRef<{ x: number; y: number } | null>(null);
 
   const [addingCard, setAddingCard] = useState(false);
   const [newCardType, setNewCardType] = useState<CardType>('note');
@@ -100,6 +107,68 @@ export const Board: React.FC<BoardProps> = ({ boardId }) => {
     [scale, x, y, setCanvasState]
   );
 
+  // ---- Touch handlers ----
+  const getTouchDist = (t1: React.Touch, t2: React.Touch) => {
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const getTouchMid = (t1: React.Touch, t2: React.Touch) => ({
+    x: (t1.clientX + t2.clientX) / 2,
+    y: (t1.clientY + t2.clientY) / 2,
+  });
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      isPanning.current = true;
+      lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      lastTouchDist.current = null;
+      lastTouchMid.current = null;
+    } else if (e.touches.length === 2) {
+      isPanning.current = false;
+      lastTouchDist.current = getTouchDist(e.touches[0], e.touches[1]);
+      lastTouchMid.current = getTouchMid(e.touches[0], e.touches[1]);
+    }
+  }, []);
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length === 1 && isPanning.current) {
+        const dx = e.touches[0].clientX - lastPos.current.x;
+        const dy = e.touches[0].clientY - lastPos.current.y;
+        lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        setCanvasState({ x: x + dx, y: y + dy });
+      } else if (e.touches.length === 2) {
+        const dist = getTouchDist(e.touches[0], e.touches[1]);
+        const mid = getTouchMid(e.touches[0], e.touches[1]);
+
+        if (lastTouchDist.current !== null && lastTouchMid.current !== null) {
+          const pinchDelta = dist / lastTouchDist.current;
+          const newScale = Math.min(Math.max(scale * pinchDelta, 0.2), 3);
+
+          const rect = canvasRef.current!.getBoundingClientRect();
+          const cx = mid.x - rect.left;
+          const cy = mid.y - rect.top;
+          const newX = cx - ((cx - x) / scale) * newScale;
+          const newY = cy - ((cy - y) / scale) * newScale;
+
+          setCanvasState({ scale: newScale, x: newX, y: newY });
+        }
+        lastTouchDist.current = dist;
+        lastTouchMid.current = mid;
+      }
+    },
+    [x, y, scale, setCanvasState]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    isPanning.current = false;
+    lastTouchDist.current = null;
+    lastTouchMid.current = null;
+  }, []);
+
   const handleCanvasDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       if ((e.target as HTMLElement).closest('.board-card')) return;
@@ -111,17 +180,15 @@ export const Board: React.FC<BoardProps> = ({ boardId }) => {
       setNewCardType('note');
       setAddingCard(true);
     },
-    [x, y, scale]
+    [x, y, scale, setNewCardPos, setNewCardType, setAddingCard]
   );
 
   const handleAddCard = (type: CardType) => {
     setNewCardType(type);
     const cx = (window.innerWidth / 2 - x) / scale;
     const cy = (window.innerHeight / 2 - y) / scale;
-    // Spread cards out with a random offset so they don't all stack
-    const offsetX = (Math.random() - 0.5) * 500;
-    const offsetY = (Math.random() - 0.5) * 350;
-    setNewCardPos({ x: cx - 110 + offsetX, y: cy - 100 + offsetY });
+    const offset = makeRandomCardOffset();
+    setNewCardPos({ x: cx - 110 + offset.x, y: cy - 100 + offset.y });
     setAddingCard(true);
   };
 
@@ -162,7 +229,7 @@ export const Board: React.FC<BoardProps> = ({ boardId }) => {
               onClick={() => setShowBgPicker(!showBgPicker)}
               title="Change Background"
             >
-              🎨 Background
+              🎨 <span className="toolbar-btn-label">Background</span>
             </button>
             {showBgPicker && (
               <div className="bg-picker-dropdown">
@@ -183,7 +250,7 @@ export const Board: React.FC<BoardProps> = ({ boardId }) => {
             )}
           </div>
           <button className="toolbar-btn" onClick={resetCanvas} title="Reset view">
-            🎯 Reset
+            🎯 <span className="toolbar-btn-label">Reset</span>
           </button>
           <div className="zoom-indicator">{Math.round(scale * 100)}%</div>
         </div>
@@ -196,7 +263,7 @@ export const Board: React.FC<BoardProps> = ({ boardId }) => {
             <div className="board-hint-icon">📌</div>
             <h3>Your board is empty!</h3>
             <p>Double-click anywhere to add a note, or use the toolbar above.</p>
-            <p className="board-hint-sub">Scroll to zoom • Middle-click to pan • Space+drag to pan</p>
+            <p className="board-hint-sub">Scroll to zoom • Middle-click to pan • Space+drag to pan • Pinch to zoom on touch</p>
           </div>
         </div>
       )}
@@ -211,6 +278,9 @@ export const Board: React.FC<BoardProps> = ({ boardId }) => {
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
         onDoubleClick={handleCanvasDoubleClick}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         <div
           className="board-canvas-inner"
